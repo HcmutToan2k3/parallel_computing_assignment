@@ -1,0 +1,26 @@
+# Build output (make)
+bin/
+*.dSYM/
+*.o
+*.out
+test_lock
+
+# Python (scripts/plot.py)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editors / OS
+.DS_Store
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.swp
+
+# Submission artifacts
+*.zip
+
+# Benchmark results (results/<hostname>/*.csv, *.png) are NOT ignored:
+# they are the data behind the report.
