@@ -3,6 +3,7 @@
     "tasks": [
         {
             "label": "build",
+            "detail": "Optimised (-O2) binaries in bin/, used for benchmarks",
             "type": "shell",
             "command": "make",
             "options": { "cwd": "${workspaceFolder}" },
@@ -10,9 +11,35 @@
             "problemMatcher": ["$gcc"]
         },
         {
+            "label": "build debug",
+            "detail": "Unoptimised (-O0) binaries in bin/debug/, used by the debugger",
+            "type": "shell",
+            "command": "make debug",
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "build tsan",
+            "detail": "ThreadSanitizer test binaries bin/test_*_tsan",
+            "type": "shell",
+            "command": "make bin/test_locks_tsan bin/test_barrier_tsan bin/test_counters_tsan",
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": ["$gcc"]
+        },
+        {
             "label": "test",
             "type": "shell",
             "command": "make test",
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "test (tsan)",
+            "type": "shell",
+            "command": "make tsan",
             "options": { "cwd": "${workspaceFolder}" },
             "group": "test",
             "problemMatcher": ["$gcc"]

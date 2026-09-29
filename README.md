@@ -16,7 +16,10 @@ src/
   bench_barrier.cpp  barrier episodes per second, no work between barriers
   bench_counter.cpp  execution time of T threads x I increments
 tests/
-  test_all.cpp       correctness tests for all three parts
+  test_common.h      shared helpers: start gate, reporting, --only/--threads/--iters options
+  test_locks.cpp     Part 1 correctness tests  -> bin/test_locks
+  test_barrier.cpp   Part 2 correctness tests  -> bin/test_barrier
+  test_counters.cpp  Part 3 correctness tests  -> bin/test_counters
 scripts/
   run_benchmarks.sh  full parameter sweep -> results/<hostname>/*.csv
   plot.py            CSV -> PNG figures for the report
@@ -26,9 +29,11 @@ old/                 the original first attempt (kept for reference)
 ## Build & run
 
 ```sh
-make                 # builds bin/bench_lock, bin/bench_barrier, bin/bench_counter, bin/test_all
-make test            # correctness tests (~40 s)
+make                 # builds the 3 benchmarks and the 3 test programs into bin/
+make test            # runs test_locks, test_barrier, test_counters (~30 s)
 make tsan            # the same tests under ThreadSanitizer (~15 s)
+make test-locks      # or test-barrier / test-counters: just one part
+make debug           # -O0 builds in bin/debug/ for the VS Code debugger
 make bench           # full benchmark sweep (~10-20 min), close other apps first
 pip3 install matplotlib && python3 scripts/plot.py results/$(hostname -s)
 ```
@@ -71,7 +76,15 @@ once libomp is available (`brew install libomp` on macOS).
   barrier and counter benchmarks start all threads at a start gate so thread
   creation is not timed.
 
-## How correctness is tested (`tests/test_all.cpp`)
+## How correctness is tested (`tests/`)
+
+Each part has its own test program. They share the same options:
+
+```sh
+./bin/test_locks    --only=mcs,ttas --threads=4 --iters=1000
+./bin/test_barrier  --only=sense
+./bin/test_counters --only=cas,faa --threads=2,8
+```
 
 | Part | What is checked |
 |------|-----------------|
@@ -89,7 +102,7 @@ broken implementation.
 
 **ThreadSanitizer** (`make tsan`) checks the happens-before relation on
 every access, so it also catches a wrong memory ordering that happens not to
-fail on one run. Run `./bin/test_all_tsan --controls` to watch it report the
+fail on one run. Run `./bin/test_locks_tsan --controls` (or the barrier / counters one) to watch it report the
 negative controls. `std::barrier` is skipped under TSan: libc++ waits inside
 its non-instrumented dylib, so TSan reports a false positive there.
 

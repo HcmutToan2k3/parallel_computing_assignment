@@ -1,8 +1,10 @@
 # Parallel Computing - Assignment 1
 #
 #   make            build benchmarks + tests into bin/
-#   make test       run correctness tests (optimised build)
-#   make tsan       run correctness tests under ThreadSanitizer
+#   make test       run the 3 correctness tests (locks, barrier, counters)
+#   make tsan       run the 3 correctness tests under ThreadSanitizer
+#   make test-locks / test-barrier / test-counters   run just one of them
+#   make debug      -O0 builds for the debugger -> bin/debug/
 #   make bench      run the full benchmark sweep -> results/*.csv
 #   make clean
 #
@@ -37,29 +39,52 @@ ifeq ($(OMP),1)
   endif
 endif
 
-HEADERS := $(wildcard include/*.h)
-BINS    := bin/bench_lock bin/bench_barrier bin/bench_counter bin/test_all
+HEADERS   := $(wildcard include/*.h) tests/test_common.h
+TESTS     := test_locks test_barrier test_counters
+BINS      := bin/bench_lock bin/bench_barrier bin/bench_counter $(TESTS:%=bin/%)
+TSAN_BINS := $(TESTS:%=bin/%_tsan)
+DBG_BINS  := $(BINS:bin/%=bin/debug/%)
 
 all: $(BINS)
 
 bin/%: src/%.cpp $(HEADERS) | bin
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
-bin/test_all: tests/test_all.cpp $(HEADERS) | bin
+bin/test_%: tests/test_%.cpp $(HEADERS) | bin
 	$(CXX) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
-# ThreadSanitizer build: no OpenMP (libomp is not TSan-instrumented).
-bin/test_all_tsan: tests/test_all.cpp $(HEADERS) | bin
+# ThreadSanitizer builds: no OpenMP (libomp is not TSan-instrumented).
+bin/test_%_tsan: tests/test_%.cpp $(HEADERS) | bin
 	$(CXX) -std=c++20 -O1 -g -pthread -Iinclude -fsanitize=thread $< -o $@
 
-bin:
-	mkdir -p bin
+# Debug builds: no optimisation, so breakpoints, stepping and local
+# variables behave. Never benchmark these.
+DBG_CXXFLAGS := $(filter-out -O%,$(CXXFLAGS)) -O0
 
-test: bin/test_all
-	./bin/test_all
+bin/debug/%: src/%.cpp $(HEADERS) | bin/debug
+	$(CXX) $(DBG_CXXFLAGS) $< -o $@ $(LDFLAGS)
 
-tsan: bin/test_all_tsan
-	./bin/test_all_tsan
+bin/debug/test_%: tests/test_%.cpp $(HEADERS) | bin/debug
+	$(CXX) $(DBG_CXXFLAGS) $< -o $@ $(LDFLAGS)
+
+debug: $(DBG_BINS)
+
+bin bin/debug:
+	mkdir -p $@
+
+# Runs all three even if one fails, then fails if any of them failed.
+test: $(TESTS:%=bin/%)
+	@status=0; for t in $(TESTS); do ./bin/$$t || status=1; echo; done; exit $$status
+
+tsan: $(TSAN_BINS)
+	@status=0; for t in $(TESTS); do ./bin/$${t}_tsan || status=1; echo; done; exit $$status
+
+test-locks: bin/test_locks
+	./bin/test_locks
+test-barrier: bin/test_barrier
+	./bin/test_barrier
+test-counters: bin/test_counters
+	./bin/test_counters
 
 bench: $(BINS)
 	./scripts/run_benchmarks.sh
@@ -67,4 +92,4 @@ bench: $(BINS)
 clean:
 	rm -rf bin
 
-.PHONY: all test tsan bench clean
+.PHONY: all test tsan test-locks test-barrier test-counters bench debug clean

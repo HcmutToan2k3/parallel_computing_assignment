@@ -1,23 +1,159 @@
 {
+    // Debug configurations (CodeLLDB extension: vadimcn.vscode-lldb).
+    // All of them build and run the -O0 binaries in bin/debug/ except the
+    // ThreadSanitizer one. Pick a configuration in the Run and Debug view and
+    // press F5; you are asked which test program, implementation and thread
+    // count to run. Test programs: test_locks, test_barrier, test_counters.
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug bench_lock",
+            "name": "test: one case",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/bench_lock",
-            "args": ["--lock=mcs", "--threads=4", "--reps=1"],
+            "program": "${workspaceFolder}/bin/debug/${input:testProgram}",
+            "args": [
+                "--only=${input:testName}",
+                "--threads=${input:threads}",
+                "--iters=${input:iters}"
+            ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "build"
+            "preLaunchTask": "build debug"
         },
         {
-            "name": "Debug test_all",
+            "name": "test: whole program",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/test_all",
+            "program": "${workspaceFolder}/bin/debug/${input:testProgram}",
             "args": [],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "build"
+            "preLaunchTask": "build debug"
+        },
+        {
+            // Stops in the debugger at the moment TSan reports a data race,
+            // with every thread's stack available in the Call Stack view.
+            "name": "test under ThreadSanitizer (break on race)",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/${input:testProgram}_tsan",
+            "args": [
+                "--only=${input:testName}",
+                "--threads=${input:threads}",
+                "--iters=${input:iters}",
+                "--controls"
+            ],
+            "env": { "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1" },
+            "preRunCommands": ["breakpoint set --name __tsan_on_report"],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build tsan"
+        },
+        {
+            "name": "bench_lock",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/bench_lock",
+            "args": [
+                "--lock=${input:lock}",
+                "--threads=${input:threads}",
+                "--iters=${input:iters}",
+                "--outside=0",
+                "--n=101",
+                "--reps=1"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build debug"
+        },
+        {
+            "name": "bench_barrier",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/bench_barrier",
+            "args": [
+                "--barrier=${input:barrier}",
+                "--threads=${input:threads}",
+                "--episodes=${input:iters}",
+                "--reps=1"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build debug"
+        },
+        {
+            "name": "bench_counter",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/bench_counter",
+            "args": [
+                "--counter=${input:counter}",
+                "--threads=${input:threads}",
+                "--iters=${input:iters}",
+                "--reps=1"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build debug"
+        },
+        {
+            // For a program that hangs (e.g. a lock that never gets released):
+            // start it from a terminal, then attach and pause to see where
+            // every thread is stuck.
+            "name": "Attach to a running program",
+            "type": "lldb",
+            "request": "attach",
+            "pid": "${command:pickMyProcess}"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testProgram",
+            "type": "pickString",
+            "description": "Which test program?",
+            "options": ["test_locks", "test_barrier", "test_counters"],
+            "default": "test_locks"
+        },
+        {
+            "id": "testName",
+            "type": "pickString",
+            "description": "Which implementation? (must belong to the test program you picked)",
+            "options": [
+                { "label": "all in this part", "value": "" },
+                "tas", "tas_backoff", "ttas", "ttas_backoff", "mcs", "mcs_nested",
+                "std_mutex", "pthread_mutex", "none",
+                "sense", "sense_backoff", "std_barrier", "pthread_cond",
+                "lock_tas", "lock_ttas", "lock_ttas_backoff", "lock_mcs",
+                "lock_std_mutex", "cas", "cas_backoff", "faa", "racy"
+            ],
+            "default": "mcs"
+        },
+        {
+            "id": "lock",
+            "type": "pickString",
+            "description": "Which lock?",
+            "options": ["tas", "tas_backoff", "ttas", "ttas_backoff", "mcs", "std_mutex", "pthread_mutex"],
+            "default": "mcs"
+        },
+        {
+            "id": "barrier",
+            "type": "pickString",
+            "description": "Which barrier?",
+            "options": ["sense", "sense_backoff", "std_barrier", "pthread_cond"],
+            "default": "sense"
+        },
+        {
+            "id": "counter",
+            "type": "pickString",
+            "description": "Which counter?",
+            "options": ["lock_tas", "lock_ttas", "lock_ttas_backoff", "lock_mcs", "lock_std_mutex", "cas", "cas_backoff", "faa"],
+            "default": "cas"
+        },
+        {
+            "id": "threads",
+            "type": "promptString",
+            "description": "Thread count(s), comma-separated",
+            "default": "4"
+        },
+        {
+            "id": "iters",
+            "type": "promptString",
+            "description": "Iterations per thread (keep it small while debugging)",
+            "default": "1000"
         }
     ]
 }
